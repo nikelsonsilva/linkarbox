@@ -1,0 +1,5 @@
+{
+  "name": "Linkarbox",
+  "description": "Linkarbox is a multi-cloud application for architects and clients, connecting Google Drive and Dropbox into a single dashboard to organize, share, and track project progress.",
+  "requestFramePermissions": []
+}
