@@ -119,8 +119,8 @@ export const SIDEBAR_ITEMS = {
     { id: 'cloud', icon: Link, label: 'Minhas conexões', isSection: true },
   ],
   client: [
-    { id: 'home', icon: Home, label: 'Shared with me' },
-    { id: 'atas', icon: HardDrive, label: 'ATAs' },
+    { id: 'home', icon: Home, label: 'Dashboard' },
+    { id: 'atas', icon: Share2, label: 'Compartilhados' },
   ],
 };
 

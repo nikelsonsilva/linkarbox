@@ -86,16 +86,12 @@ export default function App() {
 
   // Check for special routes
   const [inviteToken, setInviteToken] = useState<string | null>(null);
-  const [isClientDashboard, setIsClientDashboard] = useState(false);
 
   useEffect(() => {
     const path = window.location.pathname;
     const inviteMatch = path.match(/^\/invite\/(.+)$/);
     if (inviteMatch) {
       setInviteToken(inviteMatch[1]);
-    }
-    if (path === '/client-dashboard') {
-      setIsClientDashboard(true);
     }
   }, []);
 
@@ -841,6 +837,10 @@ export default function App() {
     }
     switch (activePage) {
       case 'home':
+        // Show ClientDashboard for clients, HomeView for architects
+        if (currentUser?.role === 'client') {
+          return <ClientDashboard />;
+        }
         return (
           <HomeView
             user={currentUser!}
@@ -885,10 +885,7 @@ export default function App() {
     );
   }
 
-  // Handle client dashboard route
-  if (isClientDashboard) {
-    return <ClientDashboard />;
-  }
+
 
   if (!isAuthenticated) {
     return authView === 'login' ? (
