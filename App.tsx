@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import type { FileItem, ViewMode, Page, User, Role } from './types';
-import { ItemType, MOCK_DATA, MOCK_USERS } from './constants';
+import { ItemType } from './constants';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import FileExplorer from './components/FileExplorer';
@@ -510,7 +510,7 @@ export default function App() {
     }
     if (!activeCloud) {
       setCurrentFolderId(null);
-      setAllItems(MOCK_DATA);
+      setAllItems([]);
       setActivePage('home');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -866,7 +866,17 @@ export default function App() {
       case 'atas':
         // Show SharedFilesView for architects, AtaView for clients
         if (currentUser?.role === 'architect') {
-          return <SharedFilesView architectId={currentUser.id} viewMode={viewMode} />;
+          return (
+            <SharedFilesView
+              architectId={currentUser.id}
+              viewMode={viewMode}
+              onItemClick={(item: FileItem) => {
+                // Navigate to all-files and select this item
+                setSelectedItem(item);
+                setActivePage('all-files');
+              }}
+            />
+          );
         }
         return <AtaView items={ataItems} viewMode={viewMode} {...commonProps} />;
       case 'clients': return <ClientsView onNavigate={handleSetPage} searchQuery={searchQuery} />;
@@ -902,6 +912,11 @@ export default function App() {
   }
 
   if (!currentUser) return <div className="flex items-center justify-center h-screen bg-[#F7F9FC]"><LoaderCircle className="w-12 h-12 text-primary animate-spin" /></div>;
+
+  // Clients see only their dashboard, not the full app interface
+  if (currentUser.role === 'client') {
+    return <ClientDashboard clientId={currentUser.id} />;
+  }
 
 
   return (

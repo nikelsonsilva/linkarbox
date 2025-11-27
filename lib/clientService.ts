@@ -15,6 +15,7 @@ export interface Client {
     registered_at?: string;
     created_at: string;
     updated_at: string;
+    user_id?: string; // Links to auth.users.id
 }
 
 export interface CreateClientData {

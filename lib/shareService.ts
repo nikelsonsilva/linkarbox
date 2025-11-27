@@ -13,6 +13,11 @@ export interface SharedFile {
     filesize?: number;    // Updated column name
     sharedat: string;     // Updated column name
     permission: 'view' | 'edit';
+    // File access URLs
+    web_view_link?: string;
+    file_url?: string;
+    thumbnail_url?: string;
+    icon_link?: string;
 }
 
 export interface ShareFileParams {
@@ -26,6 +31,11 @@ export interface ShareFileParams {
     filePath?: string;
     fileSize?: number;
     permission?: 'view' | 'edit';
+    // File access URLs
+    webViewLink?: string;
+    fileUrl?: string;
+    thumbnailUrl?: string;
+    iconLink?: string;
 }
 
 /**
@@ -46,6 +56,11 @@ export async function shareFileWithClient(params: ShareFileParams): Promise<Shar
                 filepath: params.filePath,         // Updated column name
                 filesize: params.fileSize,         // Updated column name
                 permission: params.permission || 'view',
+                // File access URLs
+                web_view_link: params.webViewLink,
+                file_url: params.fileUrl,
+                thumbnail_url: params.thumbnailUrl,
+                icon_link: params.iconLink,
             })
             .select()
             .single();
@@ -140,16 +155,34 @@ export async function getSharedFilesByArchitect(architectId: string): Promise<Sh
  */
 export async function getSharedFilesForClient(clientId: string): Promise<SharedFile[]> {
     try {
+        console.log('=== getSharedFilesForClient DEBUG ===');
+        console.log('Querying for client_id:', clientId);
+
         const { data, error } = await supabase
             .from('shared_files')
             .select('*')
             .eq('client_id', clientId)
             .order('sharedat', { ascending: false });  // Updated column name
 
+        console.log('Supabase query result:');
+        console.log('  - Data:', data);
+        console.log('  - Error:', error);
+        console.log('  - Data length:', data?.length || 0);
+
         if (error) {
             console.error('Error fetching shared files for client:', error);
             return [];
         }
+
+        // Also try to fetch ALL shared files to see what's in the database
+        const { data: allFiles } = await supabase
+            .from('shared_files')
+            .select('client_id, filename');
+
+        console.log('All shared files in database (first 5):');
+        console.log(allFiles?.slice(0, 5));
+        console.log('Looking for client_id:', clientId);
+        console.log('Matching files:', allFiles?.filter(f => f.client_id === clientId));
 
         return data || [];
     } catch (error) {

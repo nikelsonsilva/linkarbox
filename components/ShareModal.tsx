@@ -55,9 +55,55 @@ const ShareModal: React.FC<ShareModalProps> = ({
   const handleShare = async (clientId: string) => {
     setIsSaving(true);
     try {
+      // Find the client to get their user_id
+      const client = clients.find(c => c.id === clientId);
+
+      if (!client) {
+        alert('Cliente não encontrado.');
+        return;
+      }
+
+      // Check if client has a user_id (auth.users ID)
+      if (!client.user_id) {
+        alert('Este cliente ainda não completou o registro. Por favor, aguarde até que ele aceite o convite e crie sua conta.');
+        return;
+      }
+
+      // Import the file access function
+      const { getFileAccessLinks } = await import('../lib/cloudFileAccess');
+
+      // Get file access links based on cloud provider
+      let fileLinks;
+      try {
+        // For Google Drive, we can get links directly
+        if (cloudProvider === 'google') {
+          fileLinks = await getFileAccessLinks('google', item.id);
+        } else if (cloudProvider === 'dropbox') {
+          // For Dropbox, we need the dropbox client - we'll pass undefined for now
+          // and handle in the function
+          console.warn('Dropbox link generation requires dropbox client instance');
+          fileLinks = {
+            webViewLink: undefined,
+            downloadLink: undefined,
+            thumbnailLink: undefined,
+            iconLink: undefined
+          };
+        }
+      } catch (linkError) {
+        console.error('Error getting file access links:', linkError);
+        // Continue without links - better to share without links than fail completely
+        fileLinks = {
+          webViewLink: undefined,
+          downloadLink: undefined,
+          thumbnailLink: undefined,
+          iconLink: undefined
+        };
+      }
+
+      // Use client.user_id instead of client.id
       const result = await shareFileWithClient({
         architectId,
-        clientId,
+        clientId: client.user_id, // Changed from clientId to client.user_id
         cloudProvider,
         cloudFileId: item.id,
         fileName: item.name,
@@ -65,10 +111,15 @@ const ShareModal: React.FC<ShareModalProps> = ({
         mimeType: item.mimeType,
         filePath: item.parentId || undefined,
         fileSize: item.size ? parseInt(item.size) : undefined,
+        // Pass the file access links
+        webViewLink: fileLinks?.webViewLink,
+        fileUrl: fileLinks?.downloadLink,
+        thumbnailUrl: fileLinks?.thumbnailLink,
+        iconLink: fileLinks?.iconLink,
       });
 
       if (result) {
-        setSharedClientIds([...sharedClientIds, clientId]);
+        setSharedClientIds([...sharedClientIds, client.id]); // Still use client.id for UI tracking
         onShareComplete?.();
       } else {
         alert('Erro ao compartilhar arquivo. Tente novamente.');
