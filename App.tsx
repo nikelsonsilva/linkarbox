@@ -20,6 +20,7 @@ import HomeView from './components/HomeView';
 import ClientsView from './components/ClientsView';
 import ClientRegistration from './components/ClientRegistration';
 import ClientDashboard from './components/ClientDashboard';
+import SharedFilesView from './components/SharedFilesView';
 import { supabase } from './lib/supabase';
 import { getUnreadNotesCountMap } from './lib/noteService';
 
@@ -839,7 +840,7 @@ export default function App() {
       case 'home':
         // Show ClientDashboard for clients, HomeView for architects
         if (currentUser?.role === 'client') {
-          return <ClientDashboard />;
+          return <ClientDashboard clientId={currentUser.id} />;
         }
         return (
           <HomeView
@@ -862,7 +863,12 @@ export default function App() {
         );
       case 'all-files': return <AllFilesView viewMode={viewMode} items={displayedItems} path={path} onNavigate={handleNavigate} isCloudConnected={!!activeCloud} onConnectDrive={() => handleSetPage('cloud')} selectedItemId={selectedItem?.id || null} {...commonProps} />;
       case 'starred': return <StarredView items={starredItems} viewMode={viewMode} {...commonProps} />;
-      case 'atas': return <AtaView items={ataItems} viewMode={viewMode} {...commonProps} />;
+      case 'atas':
+        // Show SharedFilesView for architects, AtaView for clients
+        if (currentUser?.role === 'architect') {
+          return <SharedFilesView architectId={currentUser.id} viewMode={viewMode} />;
+        }
+        return <AtaView items={ataItems} viewMode={viewMode} {...commonProps} />;
       case 'clients': return <ClientsView onNavigate={handleSetPage} searchQuery={searchQuery} />;
       case 'cloud': return <CloudConnectionsView isDriveConnected={isDriveConnected} isDropboxConnected={isDropboxConnected} onConnectGoogleDrive={handleConnectGoogleDrive} onDisconnectGoogleDrive={handleDisconnectGoogleDrive} onConnectDropbox={handleConnectDropbox} onDisconnectDropbox={handleDisconnectDropbox} />;
       default: return null;
@@ -933,7 +939,20 @@ export default function App() {
           {selectedItem && <FileDetailPanel item={selectedItem} onClose={() => setSelectedItem(null)} currentUser={currentUser} onPreviewClick={handlePreviewClick} />}
         </main>
       </div>
-      {sharingItem && <ShareModal item={sharingItem} onClose={() => setSharingItem(null)} />}
+      {sharingItem && currentUser && (
+        <ShareModal
+          item={sharingItem}
+          onClose={() => setSharingItem(null)}
+          architectId={currentUser.id}
+          cloudProvider={activeCloud || 'google'}
+          onShareComplete={() => {
+            // Optionally refresh shared files list if on that page
+            if (activePage === 'atas') {
+              // The SharedFilesView will handle its own refresh
+            }
+          }}
+        />
+      )}
       {fullScreenPreviewItem && <PdfViewerModal item={fullScreenPreviewItem} onClose={() => setFullScreenPreviewItem(null)} />}
     </div>
   );

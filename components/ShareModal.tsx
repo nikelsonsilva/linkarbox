@@ -1,28 +1,131 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import type { FileItem } from '../types';
-import { X, Link, Search } from 'lucide-react';
-import { MOCK_USERS } from '../constants';
+import { X, Search, Loader2 } from 'lucide-react';
+import { getClients, type Client } from '../lib/clientService';
+import {
+  shareFileWithClient,
+  unshareFileWithClient,
+  getClientsForFile,
+} from '../lib/shareService';
 
 interface ShareModalProps {
   item: FileItem;
   onClose: () => void;
+  architectId: string;
+  cloudProvider: 'google' | 'dropbox';
+  onShareComplete?: () => void;
 }
 
-const ShareModal: React.FC<ShareModalProps> = ({ item, onClose }) => {
-  if (!item) return null;
+const ShareModal: React.FC<ShareModalProps> = ({
+  item,
+  onClose,
+  architectId,
+  cloudProvider,
+  onShareComplete,
+}) => {
+  const [clients, setClients] = useState<Client[]>([]);
+  const [sharedClientIds, setSharedClientIds] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const sharedWith = item.sharedWith || [];
-  const sharedUsers = sharedWith.map(id => MOCK_USERS[id]).filter(Boolean);
-  const otherUsers = Object.values(MOCK_USERS).filter(
-    (user) => !sharedWith.some((sharedUserId) => sharedUserId === user.id)
+  useEffect(() => {
+    loadData();
+  }, [item.id]);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      // Fetch all clients
+      const { data: clientsData } = await getClients();
+      if (clientsData) {
+        setClients(clientsData.filter(c => c.status === 'active'));
+      }
+
+      // Fetch clients this file is already shared with
+      const sharedIds = await getClientsForFile(architectId, item.id);
+      setSharedClientIds(sharedIds);
+    } catch (error) {
+      console.error('Error loading share data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleShare = async (clientId: string) => {
+    setIsSaving(true);
+    try {
+      const result = await shareFileWithClient({
+        architectId,
+        clientId,
+        cloudProvider,
+        cloudFileId: item.id,
+        fileName: item.name,
+        fileType: item.type === 'FOLDER' ? 'folder' : 'file',
+        mimeType: item.mimeType,
+        filePath: item.parentId || undefined,
+        fileSize: item.size ? parseInt(item.size) : undefined,
+      });
+
+      if (result) {
+        setSharedClientIds([...sharedClientIds, clientId]);
+        onShareComplete?.();
+      } else {
+        alert('Erro ao compartilhar arquivo. Tente novamente.');
+      }
+    } catch (error) {
+      console.error('Error sharing file:', error);
+      alert('Erro ao compartilhar arquivo.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleUnshare = async (clientId: string) => {
+    setIsSaving(true);
+    try {
+      const success = await unshareFileWithClient(architectId, clientId, item.id);
+      if (success) {
+        setSharedClientIds(sharedClientIds.filter(id => id !== clientId));
+        onShareComplete?.();
+      } else {
+        alert('Erro ao remover compartilhamento. Tente novamente.');
+      }
+    } catch (error) {
+      console.error('Error unsharing file:', error);
+      alert('Erro ao remover compartilhamento.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const filteredClients = clients.filter(client =>
+    client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    client.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const sharedClients = filteredClients.filter(c => sharedClientIds.includes(c.id));
+  const unsharedClients = filteredClients.filter(c => !sharedClientIds.includes(c.id));
+
+  if (!item) return null;
+
   return (
-    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2_5xl shadow-xl w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-xl w-full max-w-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-          <h2 className="text-xl font-semibold text-gray-800">Share "{item.name}"</h2>
-          <button onClick={onClose} className="p-2 text-gray-500 rounded-full hover:bg-gray-200/50">
+          <h2 className="text-xl font-semibold text-gray-800">
+            Compartilhar "{item.name}"
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-2 text-gray-500 rounded-full hover:bg-gray-200/50"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -32,51 +135,102 @@ const ShareModal: React.FC<ShareModalProps> = ({ item, onClose }) => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Email or name"
+              placeholder="Buscar cliente por nome ou email"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full border border-gray-300 rounded-lg py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
 
-          <div className="space-y-4 max-h-48 overflow-y-auto pr-2">
-            <h3 className="font-semibold text-gray-600 text-sm">Shared with</h3>
-            {sharedUsers.map(user => (
-              <div key={user.id} className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <img src={user.avatarUrl} alt={user.name} className="w-9 h-9 rounded-full" />
-                  <div>
-                    <p className="font-medium text-gray-800">{user.name}</p>
-                    <p className="text-xs text-gray-500 capitalize">{user.role}</p>
-                  </div>
-                </div>
-                <select className="text-sm border-gray-300 rounded-md shadow-sm focus:border-primary focus:ring-primary">
-                  <option>Can Edit</option>
-                  <option>Can View</option>
-                </select>
-              </div>
-            ))}
-            <h3 className="font-semibold text-gray-600 text-sm pt-2">Invite others</h3>
-            {otherUsers.map(user => (
-              <div key={user.id} className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <img src={user.avatarUrl} alt={user.name} className="w-9 h-9 rounded-full" />
-                  <div>
-                    <p className="font-medium text-gray-800">{user.name}</p>
-                    <p className="text-xs text-gray-500 capitalize">{user.role}</p>
-                  </div>
-                </div>
-                <button className="text-sm font-semibold text-primary hover:text-primary-hover">Invite</button>
-              </div>
-            ))}
-          </div>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 text-primary animate-spin" />
+            </div>
+          ) : (
+            <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+              {sharedClients.length > 0 && (
+                <>
+                  <h3 className="font-semibold text-gray-600 text-sm">
+                    Compartilhado com
+                  </h3>
+                  {sharedClients.map((client) => (
+                    <div
+                      key={client.id}
+                      className="flex items-center justify-between py-2"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
+                          <span className="text-primary font-semibold text-sm">
+                            {client.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-800">{client.name}</p>
+                          <p className="text-xs text-gray-500">{client.email}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleUnshare(client.id)}
+                        disabled={isSaving}
+                        className="text-sm font-semibold text-red-600 hover:text-red-700 disabled:opacity-50"
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {unsharedClients.length > 0 && (
+                <>
+                  <h3 className="font-semibold text-gray-600 text-sm pt-2">
+                    Compartilhar com
+                  </h3>
+                  {unsharedClients.map((client) => (
+                    <div
+                      key={client.id}
+                      className="flex items-center justify-between py-2"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center">
+                          <span className="text-gray-600 font-semibold text-sm">
+                            {client.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-800">{client.name}</p>
+                          <p className="text-xs text-gray-500">{client.email}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleShare(client.id)}
+                        disabled={isSaving}
+                        className="text-sm font-semibold text-primary hover:text-primary-hover disabled:opacity-50"
+                      >
+                        Compartilhar
+                      </button>
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {filteredClients.length === 0 && (
+                <p className="text-center text-gray-500 py-4">
+                  {searchQuery
+                    ? 'Nenhum cliente encontrado'
+                    : 'Você ainda não tem clientes cadastrados'}
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
-        <div className="p-6 bg-gray-50 rounded-b-2_5xl flex items-center justify-between">
-          <button className="flex items-center gap-2 text-sm text-gray-600 hover:text-primary">
-            <Link className="w-4 h-4" />
-            <span>Copy link</span>
-          </button>
-          <button onClick={onClose} className="px-5 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary-hover transition-colors">
-            Done
+        <div className="p-6 bg-gray-50 rounded-b-2xl flex items-center justify-end">
+          <button
+            onClick={onClose}
+            className="px-5 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary-hover transition-colors"
+          >
+            Concluído
           </button>
         </div>
       </div>

@@ -72,8 +72,8 @@ const ClientRegistration: React.FC<ClientRegistrationProps> = ({ inviteToken, on
 
             setSuccess(true);
             setTimeout(() => {
-                // Redirect to client dashboard
-                window.location.href = '/client-dashboard';
+                // Redirect to home - App.tsx will show ClientDashboard for clients
+                window.location.href = '/';
             }, 2000);
         } catch (err: any) {
             setError(err.message || 'Erro ao completar cadastro');
