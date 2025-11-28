@@ -559,6 +559,9 @@ export default function App() {
     if (page === 'home') {
       setCurrentFolderId('root');
     }
+    if (page === 'all-files') {
+      setCurrentFolderId('root');
+    }
   }, []);
 
   const handleModalConnect = (cloud: 'google' | 'dropbox', keepConnected: boolean) => {
@@ -871,9 +874,17 @@ export default function App() {
               architectId={currentUser.id}
               viewMode={viewMode}
               onItemClick={(item: FileItem) => {
-                // Navigate to all-files and select this item
-                setSelectedItem(item);
+                // Navigate to all-files
                 setActivePage('all-files');
+
+                // If it's a folder, navigate into it instead of selecting
+                if (item.type === 'FOLDER') {
+                  handleNavigate(item.id);
+                  setSelectedItem(null); // Don't select folders
+                } else {
+                  // If it's a file, select it to open detail panel
+                  setSelectedItem(item);
+                }
               }}
             />
           );

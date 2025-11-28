@@ -72,7 +72,7 @@ const FileDetailPanel: React.FC<FileDetailPanelProps> = ({ item, onClose, curren
     loadUnreadCount();
   };
 
-  const sharedWithUsers = item.sharedWith.map(id => MOCK_USERS[id]).filter(Boolean);
+  const sharedWithUsers = (item.sharedWith || []).map(id => MOCK_USERS[id]).filter(Boolean);
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -128,7 +128,13 @@ const FileDetailPanel: React.FC<FileDetailPanelProps> = ({ item, onClose, curren
                   <div className="pt-2 pl-6 space-y-3">
                     {sharedWithUsers.map(user => (
                       <div key={user.id} className="flex items-center gap-3">
-                        <img src={user.avatarUrl} alt={user.name} className="w-8 h-8 rounded-full" />
+                        {user.avatarUrl ? (
+                          <img src={user.avatarUrl} alt={user.name} className="w-8 h-8 rounded-full" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                            <Users className="w-4 h-4 text-primary" />
+                          </div>
+                        )}
                         <div>
                           <p className="font-medium text-sm text-gray-700">{user.name}</p>
                           <p className="text-xs text-gray-500 capitalize">{user.role}</p>
