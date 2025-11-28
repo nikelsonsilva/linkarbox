@@ -18,15 +18,36 @@ export interface FileAccessLinks {
  */
 export async function getGoogleDriveFileLinks(fileId: string): Promise<FileAccessLinks> {
     try {
-        // First, make the file accessible to anyone with the link
-        await window.gapi.client.drive.permissions.create({
-            fileId: fileId,
-            resource: {
-                role: 'reader',
-                type: 'anyone'
-            }
-        });
+        console.log('Getting Google Drive links for file:', fileId);
 
+        // Check if gapi is available
+        if (!window.gapi || !window.gapi.client || !window.gapi.client.drive) {
+            console.error('Google Drive API (gapi) is not loaded');
+            throw new Error('Google Drive API not available');
+        }
+
+        console.log('Step 1: Creating public permission for file...');
+        // First, make the file accessible to anyone with the link
+        try {
+            await window.gapi.client.drive.permissions.create({
+                fileId: fileId,
+                resource: {
+                    role: 'reader',
+                    type: 'anyone'
+                }
+            });
+            console.log('Successfully created public permission');
+        } catch (permError: any) {
+            // If permission already exists, that's okay
+            if (permError?.result?.error?.message?.includes('already exists')) {
+                console.log('Permission already exists, continuing...');
+            } else {
+                console.error('Error creating permission:', permError);
+                throw permError;
+            }
+        }
+
+        console.log('Step 2: Getting file metadata with links...');
         // Get file metadata with links
         const response = await window.gapi.client.drive.files.get({
             fileId: fileId,
@@ -34,15 +55,20 @@ export async function getGoogleDriveFileLinks(fileId: string): Promise<FileAcces
         });
 
         const file = response.result;
+        console.log('File metadata retrieved:', file);
 
-        return {
+        const links = {
             webViewLink: file.webViewLink,
             downloadLink: file.webContentLink || file.webViewLink, // Fallback to webViewLink if no direct download
             thumbnailLink: file.thumbnailLink,
             iconLink: file.iconLink
         };
+
+        console.log('Generated links:', links);
+        return links;
     } catch (error) {
         console.error('Error getting Google Drive file links:', error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
         throw error;
     }
 }

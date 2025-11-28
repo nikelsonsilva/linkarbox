@@ -66,6 +66,12 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({ clientId }) => {
     };
 
     const handleFileClick = (file: SharedFile) => {
+        console.log('=== FILE CLICK DEBUG ===');
+        console.log('File clicked:', file.filename);
+        console.log('web_view_link:', file.web_view_link);
+        console.log('file_url:', file.file_url);
+        console.log('Full file data:', JSON.stringify(file, null, 2));
+
         // Open file in new tab if we have a view link
         if (file.web_view_link) {
             window.open(file.web_view_link, '_blank');

@@ -971,6 +971,7 @@ export default function App() {
           onClose={() => setSharingItem(null)}
           architectId={currentUser.id}
           cloudProvider={activeCloud || 'google'}
+          dropboxClient={dropboxClient}
           onShareComplete={() => {
             // Optionally refresh shared files list if on that page
             if (activePage === 'atas') {

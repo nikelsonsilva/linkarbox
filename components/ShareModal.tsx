@@ -13,6 +13,7 @@ interface ShareModalProps {
   onClose: () => void;
   architectId: string;
   cloudProvider: 'google' | 'dropbox';
+  dropboxClient?: any;
   onShareComplete?: () => void;
 }
 
@@ -21,6 +22,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
   onClose,
   architectId,
   cloudProvider,
+  dropboxClient,
   onShareComplete,
 }) => {
   const [clients, setClients] = useState<Client[]>([]);
@@ -58,6 +60,11 @@ const ShareModal: React.FC<ShareModalProps> = ({
       // Find the client to get their user_id
       const client = clients.find(c => c.id === clientId);
 
+      console.log('=== SHARE DEBUG ===');
+      console.log('Attempting to share with client ID:', clientId);
+      console.log('Client found:', client);
+      console.log('Client user_id:', client?.user_id);
+
       if (!client) {
         alert('Cliente não encontrado.');
         return;
@@ -65,8 +72,9 @@ const ShareModal: React.FC<ShareModalProps> = ({
 
       // Check if client has a user_id (auth.users ID)
       if (!client.user_id) {
-        alert('Este cliente ainda não completou o registro. Por favor, aguarde até que ele aceite o convite e crie sua conta.');
-        return;
+        console.warn('Client does not have user_id, but will attempt to share anyway');
+        console.log('Using client.id as fallback:', client.id);
+        // Don't block - we'll use client.id as fallback
       }
 
       // Import the file access function
@@ -75,22 +83,34 @@ const ShareModal: React.FC<ShareModalProps> = ({
       // Get file access links based on cloud provider
       let fileLinks;
       try {
+        console.log('Attempting to generate file access links for:', item.name);
+        console.log('Cloud provider:', cloudProvider);
+        console.log('File ID:', item.id);
+
         // For Google Drive, we can get links directly
         if (cloudProvider === 'google') {
           fileLinks = await getFileAccessLinks('google', item.id);
+          console.log('Successfully generated Google Drive links:', fileLinks);
         } else if (cloudProvider === 'dropbox') {
-          // For Dropbox, we need the dropbox client - we'll pass undefined for now
-          // and handle in the function
-          console.warn('Dropbox link generation requires dropbox client instance');
-          fileLinks = {
-            webViewLink: undefined,
-            downloadLink: undefined,
-            thumbnailLink: undefined,
-            iconLink: undefined
-          };
+          // For Dropbox, use the dropbox client if available
+          if (dropboxClient) {
+            console.log('Generating Dropbox links with client...');
+            fileLinks = await getFileAccessLinks('dropbox', item.id, dropboxClient);
+            console.log('Successfully generated Dropbox links:', fileLinks);
+          } else {
+            console.warn('Dropbox client not available, sharing without links');
+            fileLinks = {
+              webViewLink: undefined,
+              downloadLink: undefined,
+              thumbnailLink: undefined,
+              iconLink: undefined
+            };
+          }
         }
       } catch (linkError) {
         console.error('Error getting file access links:', linkError);
+        console.error('Link error details:', JSON.stringify(linkError, null, 2));
+
         // Continue without links - better to share without links than fail completely
         fileLinks = {
           webViewLink: undefined,
@@ -98,12 +118,19 @@ const ShareModal: React.FC<ShareModalProps> = ({
           thumbnailLink: undefined,
           iconLink: undefined
         };
+
+        // Show warning to user but don't block sharing
+        console.warn('Compartilhando sem links de acesso. O cliente pode não conseguir visualizar o arquivo.');
       }
 
-      // Use client.user_id instead of client.id
+      // Use client.user_id instead of client.id, with fallback
+      const clientIdToUse = client.user_id || client.id;
+      console.log('Client ID to use for sharing:', clientIdToUse);
+      console.log('Using user_id?', !!client.user_id);
+
       const result = await shareFileWithClient({
         architectId,
-        clientId: client.user_id, // Changed from clientId to client.user_id
+        clientId: clientIdToUse,
         cloudProvider,
         cloudFileId: item.id,
         fileName: item.name,
