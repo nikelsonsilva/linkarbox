@@ -24,6 +24,7 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({ clientId }) => {
     const [folderContents, setFolderContents] = useState<FolderFile[]>([]);
     const [isLoadingFolder, setIsLoadingFolder] = useState(false);
     const [navigationPath, setNavigationPath] = useState<Array<{ name: string; folder: SharedFile | null }>>([{ name: 'Todos os Arquivos', folder: null }]);
+    const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
     useEffect(() => {
         loadUserData();
@@ -103,22 +104,83 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({ clientId }) => {
         alert(`Arquivo: ${file.filename}\n\nPainel de detalhes será implementado em breve.`);
     };
 
-    const handleFolderFileClick = (file: FolderFile) => {
+    const handleFolderFileClick = async (file: FolderFile) => {
         console.log('[Client] Folder file clicked:', file.filename);
 
+        // For subfolders, load their contents recursively
         if (file.filetype === 'folder') {
-            alert('Navegação em subpastas será implementada em breve.');
+            console.log('[Client] Loading subfolder contents:', file.cloudfileid);
+            setIsLoadingFolder(true);
+
+            try {
+                // We need to get the architect_id from the current folder
+                const architectId = currentFolder?.architect_id;
+                if (!architectId) {
+                    throw new Error('Architect ID not found');
+                }
+
+                const contents = await loadFolderContents(file.cloudfileid, architectId);
+                console.log('[Client] Loaded subfolder contents:', contents);
+
+                // Create a temporary SharedFile object for the subfolder
+                const subfolderAsSharedFile: SharedFile = {
+                    id: file.cloudfileid, // Use cloudfileid as id since FolderFile doesn't have id
+                    cloudfileid: file.cloudfileid,
+                    filename: file.filename,
+                    filetype: 'folder',
+                    architect_id: architectId,
+                    client_id: currentFolder?.client_id || '',
+                    sharedat: new Date().toISOString(),
+                    cloud_provider: currentFolder?.cloud_provider || 'dropbox',
+                    web_view_link: null,
+                    file_url: null,
+                    thumbnail_url: null,
+                    icon_link: null,
+                    permission: 'view' // Default permission for subfolders
+                };
+
+                setCurrentFolder(subfolderAsSharedFile);
+                setFolderContents(contents);
+                setNavigationPath([...navigationPath, { name: file.filename, folder: subfolderAsSharedFile }]);
+            } catch (error: any) {
+                console.error('[Client] Error loading subfolder:', error);
+                alert(`Erro ao carregar subpasta: ${error.message}`);
+            } finally {
+                setIsLoadingFolder(false);
+            }
             return;
         }
 
+        // For files, show detail panel (to be implemented - for now show alert)
+        console.log('[Client] File clicked - would open detail panel');
         alert(`Arquivo: ${file.filename}\n\nPainel de detalhes será implementado em breve.`);
     };
 
-    const handleNavigateToFolder = (index: number) => {
+    const handleNavigateToFolder = async (index: number) => {
         const targetPath = navigationPath[index];
+
+        // If navigating back to root
+        if (!targetPath.folder) {
+            setCurrentFolder(null);
+            setFolderContents([]);
+            setNavigationPath(navigationPath.slice(0, index + 1));
+            return;
+        }
+
+        // If navigating back to a folder, reload its contents
         setCurrentFolder(targetPath.folder);
-        setFolderContents([]);
         setNavigationPath(navigationPath.slice(0, index + 1));
+        setIsLoadingFolder(true);
+
+        try {
+            const contents = await loadFolderContents(targetPath.folder.cloudfileid, targetPath.folder.architect_id);
+            setFolderContents(contents);
+        } catch (error: any) {
+            console.error('[Client] Error reloading folder:', error);
+            alert(`Erro ao recarregar pasta: ${error.message}`);
+        } finally {
+            setIsLoadingFolder(false);
+        }
     };
 
     const handleDownload = (file: SharedFile, e: React.MouseEvent) => {
@@ -131,6 +193,24 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({ clientId }) => {
             window.open(file.web_view_link, '_blank');
         } else {
             alert('Link de download não disponível para este arquivo.');
+        }
+    };
+
+    const getFileIcon = (filename: string, filetype: string) => {
+        if (filetype === 'folder') return <FolderOpen className="w-8 h-8 text-primary" />;
+
+        const ext = filename.split('.').pop()?.toLowerCase();
+        switch (ext) {
+            case 'pdf': return <File className="w-8 h-8 text-red-500" />;
+            case 'jpg':
+            case 'jpeg':
+            case 'png':
+            case 'gif': return <File className="w-8 h-8 text-blue-500" />;
+            case 'doc':
+            case 'docx': return <File className="w-8 h-8 text-blue-600" />;
+            case 'xls':
+            case 'xlsx': return <File className="w-8 h-8 text-green-600" />;
+            default: return <File className="w-8 h-8 text-gray-400" />;
         }
     };
 
@@ -427,91 +507,177 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({ clientId }) => {
                                     <div className="p-6 border-b border-gray-100">
                                         <div className="flex items-center justify-between">
                                             <div>
+                                                {/* Breadcrumb Navigation */}
+                                                {currentFolder && (
+                                                    <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
+                                                        {navigationPath.map((item, index) => (
+                                                            <div key={index} className="flex items-center gap-2">
+                                                                {index > 0 && <ChevronRight className="w-4 h-4" />}
+                                                                <button
+                                                                    onClick={() => handleNavigateToFolder(index)}
+                                                                    className={`hover:text-primary transition-colors ${index === navigationPath.length - 1
+                                                                        ? 'font-semibold text-gray-900'
+                                                                        : ''
+                                                                        }`}
+                                                                >
+                                                                    {item.name}
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+
                                                 <h3 className="text-lg font-semibold text-gray-900">
-                                                    Todos os Arquivos
+                                                    {currentFolder ? currentFolder.filename : 'Todos os Arquivos'}
                                                 </h3>
                                                 <p className="text-sm text-gray-500 mt-1">
-                                                    {filteredFiles.length} {filteredFiles.length === 1 ? 'item' : 'itens'}
+                                                    {currentFolder
+                                                        ? `${folderContents.length} ${folderContents.length === 1 ? 'item' : 'itens'}`
+                                                        : `${filteredFiles.length} ${filteredFiles.length === 1 ? 'item' : 'itens'}`
+                                                    }
                                                 </p>
                                             </div>
                                         </div>
                                     </div>
 
+
                                     {viewMode === 'grid' ? (
                                         <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                            {filteredFiles.map((file) => (
-                                                <div
-                                                    key={file.id}
-                                                    onClick={() => handleFileClick(file)}
-                                                    className="group p-4 rounded-lg border border-gray-200 hover:border-primary hover:shadow-md transition-all cursor-pointer relative"
-                                                >
-                                                    <div className="flex flex-col items-center text-center">
-                                                        <div className="w-16 h-16 rounded-lg bg-primary/10 flex items-center justify-center mb-3">
-                                                            {file.filetype === 'folder' ? (
-                                                                <FolderOpen className="w-8 h-8 text-primary" />
-                                                            ) : (
-                                                                <File className="w-8 h-8 text-primary" />
-                                                            )}
-                                                        </div>
-                                                        <p className="font-medium text-gray-900 truncate w-full mb-1">
-                                                            {file.filename}
-                                                        </p>
-                                                        <p className="text-xs text-gray-500">
-                                                            {new Date(file.sharedat).toLocaleDateString('pt-BR')}
-                                                        </p>
-                                                        <p className="text-xs text-gray-400 mt-1">
-                                                            {file.cloud_provider === 'google' ? 'Google Drive' : 'Dropbox'}
-                                                        </p>
-                                                    </div>
-                                                    {/* Download button */}
-                                                    {(file.file_url || file.web_view_link) && (
-                                                        <button
-                                                            onClick={(e) => handleDownload(file, e)}
-                                                            className="absolute top-2 right-2 p-2 bg-white rounded-lg shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary hover:text-white"
-                                                            title="Baixar arquivo"
-                                                        >
-                                                            <Download className="w-4 h-4" />
-                                                        </button>
-                                                    )}
+                                            {isLoadingFolder ? (
+                                                <div className="col-span-full flex justify-center py-12">
+                                                    <Loader2 className="w-8 h-8 text-primary animate-spin" />
                                                 </div>
-                                            ))}
+                                            ) : currentFolder ? (
+                                                // Render Folder Contents
+                                                folderContents.map((file) => (
+                                                    <div
+                                                        key={file.id || file.cloudfileid}
+                                                        onClick={() => setSelectedFile(file.cloudfileid)}
+                                                        onDoubleClick={() => handleFolderFileClick(file)}
+                                                        className={`group p-4 rounded-lg border transition-all cursor-pointer relative ${selectedFile === file.cloudfileid
+                                                                ? 'border-primary bg-primary/5 shadow-md'
+                                                                : 'border-gray-200 hover:border-primary hover:shadow-md'
+                                                            }`}
+                                                    >
+                                                        <div className="flex flex-col items-center text-center">
+                                                            <div className="w-16 h-16 rounded-lg bg-primary/10 flex items-center justify-center mb-3">
+                                                                {getFileIcon(file.filename, file.filetype)}
+                                                            </div>
+                                                            <p className="font-medium text-gray-900 truncate w-full mb-1">
+                                                                {file.filename}
+                                                            </p>
+                                                            <p className="text-xs text-gray-500">
+                                                                {file.modified ? new Date(file.modified).toLocaleDateString('pt-BR') : '-'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                // Render Shared Files (Root)
+                                                filteredFiles.map((file) => (
+                                                    <div
+                                                        key={file.id}
+                                                        onClick={() => setSelectedFile(file.id)}
+                                                        onDoubleClick={() => handleFileClick(file)}
+                                                        className={`group p-4 rounded-lg border transition-all cursor-pointer relative ${selectedFile === file.id
+                                                                ? 'border-primary bg-primary/5 shadow-md'
+                                                                : 'border-gray-200 hover:border-primary hover:shadow-md'
+                                                            }`}
+                                                    >
+                                                        <div className="flex flex-col items-center text-center">
+                                                            <div className="w-16 h-16 rounded-lg bg-primary/10 flex items-center justify-center mb-3">
+                                                                {file.filetype === 'folder' ? (
+                                                                    <FolderOpen className="w-8 h-8 text-primary" />
+                                                                ) : (
+                                                                    <File className="w-8 h-8 text-primary" />
+                                                                )}
+                                                            </div>
+                                                            <p className="font-medium text-gray-900 truncate w-full mb-1">
+                                                                {file.filename}
+                                                            </p>
+                                                            <p className="text-xs text-gray-500">
+                                                                {new Date(file.sharedat).toLocaleDateString('pt-BR')}
+                                                            </p>
+                                                            <p className="text-xs text-gray-400 mt-1">
+                                                                {file.cloud_provider === 'google' ? 'Google Drive' : 'Dropbox'}
+                                                            </p>
+                                                        </div>
+                                                        {/* Download button */}
+                                                        {(file.file_url || file.web_view_link) && (
+                                                            <button
+                                                                onClick={(e) => handleDownload(file, e)}
+                                                                className="absolute top-2 right-2 p-2 bg-white rounded-lg shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary hover:text-white"
+                                                                title="Baixar arquivo"
+                                                            >
+                                                                <Download className="w-4 h-4" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                ))
+                                            )}
                                         </div>
                                     ) : (
                                         <div className="divide-y divide-gray-100">
-                                            {filteredFiles.map((file) => (
-                                                <div
-                                                    key={file.id}
-                                                    onClick={() => handleFileClick(file)}
-                                                    className="flex items-center gap-4 p-4 hover:bg-gray-50 transition-colors cursor-pointer group"
-                                                >
-                                                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                                                        {file.filetype === 'folder' ? (
-                                                            <FolderOpen className="w-5 h-5 text-primary" />
-                                                        ) : (
-                                                            <File className="w-5 h-5 text-primary" />
+                                            {isLoadingFolder ? (
+                                                <div className="flex justify-center py-12">
+                                                    <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                                                </div>
+                                            ) : currentFolder ? (
+                                                // Render Folder Contents (List)
+                                                folderContents.map((file) => (
+                                                    <div
+                                                        key={file.id || file.cloudfileid}
+                                                        onClick={() => handleFolderFileClick(file)}
+                                                        className="flex items-center gap-4 p-4 hover:bg-gray-50 transition-colors cursor-pointer group"
+                                                    >
+                                                        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                                            {getFileIcon(file.filename, file.filetype)}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="font-medium text-gray-900 truncate">{file.filename}</p>
+                                                            <p className="text-sm text-gray-500">
+                                                                {file.modified ? new Date(file.modified).toLocaleDateString('pt-BR') : '-'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                // Render Shared Files (List - Root)
+                                                filteredFiles.map((file) => (
+                                                    <div
+                                                        key={file.id}
+                                                        onClick={() => handleFileClick(file)}
+                                                        className="flex items-center gap-4 p-4 hover:bg-gray-50 transition-colors cursor-pointer group"
+                                                    >
+                                                        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                                            {file.filetype === 'folder' ? (
+                                                                <FolderOpen className="w-5 h-5 text-primary" />
+                                                            ) : (
+                                                                <File className="w-5 h-5 text-primary" />
+                                                            )}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="font-medium text-gray-900 truncate">{file.filename}</p>
+                                                            <p className="text-sm text-gray-500">
+                                                                {file.filetype === 'folder' ? 'Pasta' : 'Arquivo'} • Compartilhado em {new Date(file.sharedat).toLocaleDateString('pt-BR')}
+                                                            </p>
+                                                        </div>
+                                                        <div className="text-sm text-gray-500">
+                                                            {file.cloud_provider === 'google' ? 'Google Drive' : 'Dropbox'}
+                                                        </div>
+                                                        {/* Download button for list view */}
+                                                        {(file.file_url || file.web_view_link) && (
+                                                            <button
+                                                                onClick={(e) => handleDownload(file, e)}
+                                                                className="p-2 rounded-lg hover:bg-primary hover:text-white transition-colors opacity-0 group-hover:opacity-100"
+                                                                title="Baixar arquivo"
+                                                            >
+                                                                <Download className="w-4 h-4" />
+                                                            </button>
                                                         )}
                                                     </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="font-medium text-gray-900 truncate">{file.filename}</p>
-                                                        <p className="text-sm text-gray-500">
-                                                            {file.filetype === 'folder' ? 'Pasta' : 'Arquivo'} • Compartilhado em {new Date(file.sharedat).toLocaleDateString('pt-BR')}
-                                                        </p>
-                                                    </div>
-                                                    <div className="text-sm text-gray-500">
-                                                        {file.cloud_provider === 'google' ? 'Google Drive' : 'Dropbox'}
-                                                    </div>
-                                                    {/* Download button for list view */}
-                                                    {(file.file_url || file.web_view_link) && (
-                                                        <button
-                                                            onClick={(e) => handleDownload(file, e)}
-                                                            className="p-2 rounded-lg hover:bg-primary hover:text-white transition-colors opacity-0 group-hover:opacity-100"
-                                                            title="Baixar arquivo"
-                                                        >
-                                                            <Download className="w-4 h-4" />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            ))}
+                                                ))
+                                            )}
                                         </div>
                                     )}
                                 </div>

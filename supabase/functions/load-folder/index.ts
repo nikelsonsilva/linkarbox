@@ -57,33 +57,60 @@ serve(async (req) => {
         }
         console.log('User authenticated:', user.id);
 
-        // Verify user has access to this folder
+        // Verify user has access to this folder or any parent folder
         console.log('Checking folder access...');
-        const { data: sharedFolder, error: shareError } = await supabaseClient
+
+        // First, try exact match (for root shared folders)
+        let { data: sharedFolder, error: shareError } = await supabaseClient
             .from('shared_files')
             .select('*')
             .eq('client_id', user.id)
             .eq('architect_id', architectId)
             .eq('cloudfileid', folderPath)
             .eq('filetype', 'folder')
-            .single()
+            .maybeSingle()
 
-        if (shareError) {
-            console.error('Share query error:', shareError);
-            return new Response(
-                JSON.stringify({ error: 'Access denied - folder not shared with you', details: shareError.message }),
-                { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            )
-        }
-
+        // If not found, check if user has access to a parent folder
         if (!sharedFolder) {
-            console.error('Folder not found in shared_files');
-            return new Response(
-                JSON.stringify({ error: 'Access denied - folder not found' }),
-                { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            )
+            console.log('Exact match not found, checking parent folders...');
+
+            // Get all shared folders for this user and architect
+            const { data: allSharedFolders, error: allError } = await supabaseClient
+                .from('shared_files')
+                .select('*')
+                .eq('client_id', user.id)
+                .eq('architect_id', architectId)
+                .eq('filetype', 'folder')
+
+            if (allError) {
+                console.error('Error fetching shared folders:', allError);
+                return new Response(
+                    JSON.stringify({ error: 'Access denied', details: allError.message }),
+                    { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                )
+            }
+
+            // Check if folderPath is a subfolder of any shared folder
+            const hasAccess = allSharedFolders?.some(folder => {
+                // Check if folderPath starts with the shared folder path
+                const isSubfolder = folderPath.startsWith(folder.cloudfileid + '/') ||
+                    folderPath === folder.cloudfileid;
+                console.log(`Checking if ${folderPath} is subfolder of ${folder.cloudfileid}: ${isSubfolder}`);
+                return isSubfolder;
+            });
+
+            if (!hasAccess) {
+                console.error('No access to folder or any parent folder');
+                return new Response(
+                    JSON.stringify({ error: 'Access denied - folder not shared with you' }),
+                    { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                )
+            }
+
+            console.log('Access granted via parent folder');
+        } else {
+            console.log('Access verified for folder:', folderPath);
         }
-        console.log('Access verified for folder:', folderPath);
 
         // Create service role client to bypass RLS for token access
         console.log('Creating service role client...');
