@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Share2, FolderOpen, File, Clock, Loader2, LogOut, User, Grid, List, Search, Download, ExternalLink } from 'lucide-react';
+import { Home, Share2, FolderOpen, File, Clock, Loader2, LogOut, User, Grid, List, Search, Download, ExternalLink, ChevronRight } from 'lucide-react';
 import { getSharedFilesForClient, type SharedFile } from '../lib/shareService';
+import { loadFolderContents, type FolderFile } from '../lib/clientFolderLoader';
 import { supabase } from '../lib/supabase';
 
 interface ClientDashboardProps {
@@ -17,6 +18,12 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({ clientId }) => {
     const [showProfileMenu, setShowProfileMenu] = useState(false);
     const [currentUser, setCurrentUser] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState('');
+
+    // Folder navigation states
+    const [currentFolder, setCurrentFolder] = useState<SharedFile | null>(null);
+    const [folderContents, setFolderContents] = useState<FolderFile[]>([]);
+    const [isLoadingFolder, setIsLoadingFolder] = useState(false);
+    const [navigationPath, setNavigationPath] = useState<Array<{ name: string; folder: SharedFile | null }>>([{ name: 'Todos os Arquivos', folder: null }]);
 
     useEffect(() => {
         loadUserData();
@@ -65,19 +72,53 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({ clientId }) => {
         window.location.href = '/';
     };
 
-    const handleFileClick = (file: SharedFile) => {
+    const handleFileClick = async (file: SharedFile) => {
         console.log('=== FILE CLICK DEBUG ===');
         console.log('File clicked:', file.filename);
-        console.log('web_view_link:', file.web_view_link);
-        console.log('file_url:', file.file_url);
-        console.log('Full file data:', JSON.stringify(file, null, 2));
+        console.log('File type:', file.filetype);
 
-        // Open file in new tab if we have a view link
-        if (file.web_view_link) {
-            window.open(file.web_view_link, '_blank');
-        } else {
-            alert('Link de visualização não disponível para este arquivo.');
+        // For folders, load contents via API (internal navigation)
+        if (file.filetype === 'folder') {
+            console.log('[Client] Loading folder contents:', file.cloudfileid);
+            setIsLoadingFolder(true);
+
+            try {
+                const contents = await loadFolderContents(file.cloudfileid, file.architect_id);
+                console.log('[Client] Loaded folder contents:', contents);
+
+                setCurrentFolder(file);
+                setFolderContents(contents);
+                setNavigationPath([...navigationPath, { name: file.filename, folder: file }]);
+            } catch (error: any) {
+                console.error('[Client] Error loading folder:', error);
+                alert(`Erro ao carregar pasta: ${error.message}`);
+            } finally {
+                setIsLoadingFolder(false);
+            }
+            return;
         }
+
+        // For files, show detail panel (to be implemented - for now show alert)
+        console.log('[Client] File clicked - would open detail panel');
+        alert(`Arquivo: ${file.filename}\n\nPainel de detalhes será implementado em breve.`);
+    };
+
+    const handleFolderFileClick = (file: FolderFile) => {
+        console.log('[Client] Folder file clicked:', file.filename);
+
+        if (file.filetype === 'folder') {
+            alert('Navegação em subpastas será implementada em breve.');
+            return;
+        }
+
+        alert(`Arquivo: ${file.filename}\n\nPainel de detalhes será implementado em breve.`);
+    };
+
+    const handleNavigateToFolder = (index: number) => {
+        const targetPath = navigationPath[index];
+        setCurrentFolder(targetPath.folder);
+        setFolderContents([]);
+        setNavigationPath(navigationPath.slice(0, index + 1));
     };
 
     const handleDownload = (file: SharedFile, e: React.MouseEvent) => {

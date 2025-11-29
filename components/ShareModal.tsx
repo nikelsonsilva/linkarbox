@@ -74,31 +74,31 @@ const ShareModal: React.FC<ShareModalProps> = ({
       if (!client.user_id) {
         console.warn('Client does not have user_id, but will attempt to share anyway');
         console.log('Using client.id as fallback:', client.id);
-        // Don't block - we'll use client.id as fallback
       }
 
-      // Import the file access function
+      // Use client.user_id instead of client.id, with fallback
+      const clientIdToUse = client.user_id || client.id;
+      console.log('Client ID to use for sharing:', clientIdToUse);
+
+      const isFolder = item.type === 'FOLDER';
+      console.log('Is folder?', isFolder);
+
+      // Share folders the same way as files - just the folder itself, not contents
+      // Contents will be loaded on-demand when client clicks the folder
       const { getFileAccessLinks } = await import('../lib/cloudFileAccess');
 
-      // Get file access links based on cloud provider
+      // Get file access links
       let fileLinks;
       try {
         console.log('Attempting to generate file access links for:', item.name);
-        console.log('Cloud provider:', cloudProvider);
-        console.log('File ID:', item.id);
 
-        // For Google Drive, we can get links directly
         if (cloudProvider === 'google') {
           fileLinks = await getFileAccessLinks('google', item.id);
-          console.log('Successfully generated Google Drive links:', fileLinks);
         } else if (cloudProvider === 'dropbox') {
-          // For Dropbox, use the dropbox client if available
           if (dropboxClient) {
-            console.log('Generating Dropbox links with client...');
             fileLinks = await getFileAccessLinks('dropbox', item.id, dropboxClient);
-            console.log('Successfully generated Dropbox links:', fileLinks);
           } else {
-            console.warn('Dropbox client not available, sharing without links');
+            console.warn('Dropbox client not available');
             fileLinks = {
               webViewLink: undefined,
               downloadLink: undefined,
@@ -109,24 +109,13 @@ const ShareModal: React.FC<ShareModalProps> = ({
         }
       } catch (linkError) {
         console.error('Error getting file access links:', linkError);
-        console.error('Link error details:', JSON.stringify(linkError, null, 2));
-
-        // Continue without links - better to share without links than fail completely
         fileLinks = {
           webViewLink: undefined,
           downloadLink: undefined,
           thumbnailLink: undefined,
           iconLink: undefined
         };
-
-        // Show warning to user but don't block sharing
-        console.warn('Compartilhando sem links de acesso. O cliente pode não conseguir visualizar o arquivo.');
       }
-
-      // Use client.user_id instead of client.id, with fallback
-      const clientIdToUse = client.user_id || client.id;
-      console.log('Client ID to use for sharing:', clientIdToUse);
-      console.log('Using user_id?', !!client.user_id);
 
       const result = await shareFileWithClient({
         architectId,

@@ -227,6 +227,10 @@ export default function App() {
       if (dropboxClientRef.current && dropboxClientRef.current.auth) {
         await dropboxClientRef.current.auth.tokenRevoke();
       }
+
+      // Delete token from database
+      const { deleteCloudToken } = await import('./lib/cloudTokenService');
+      await deleteCloudToken('dropbox');
     } catch (error) {
       console.error("Error revoking Dropbox token:", error);
     } finally {
@@ -237,6 +241,8 @@ export default function App() {
       if (activeCloudRef.current === 'dropbox') setActiveCloud(null);
     }
   }, []);
+
+
 
   // --- Unified Cloud Logic ---
   useEffect(() => {
@@ -251,6 +257,8 @@ export default function App() {
       const accessToken = params.get('access_token');
       if (accessToken) {
         localStorage.setItem('dropbox_auth_token', accessToken);
+        // Mark that we need to save token to DB after user is authenticated
+        localStorage.setItem('dropbox_token_pending_save', 'true');
         const dbx = new window.Dropbox.Dropbox({ accessToken });
         try {
           await dbx.usersGetCurrentAccount();
@@ -261,6 +269,7 @@ export default function App() {
           console.error('Dropbox token validation failed:', error);
           alert('Failed to validate Dropbox token. Please try connecting again.');
           localStorage.removeItem('dropbox_auth_token');
+          localStorage.removeItem('dropbox_token_pending_save');
         } finally {
           window.history.replaceState({}, document.title, '/');
         }
@@ -318,6 +327,35 @@ export default function App() {
     };
     tryAutoConnect();
   }, [currentUser, initGapi, handleDisconnectGoogleDrive, handleDisconnectDropbox]);
+
+  // --- Save Pending Dropbox Token ---
+  useEffect(() => {
+    const savePendingToken = async () => {
+      if (!currentUser || !session?.user?.id) return;
+
+      const pendingSave = localStorage.getItem('dropbox_token_pending_save');
+      const accessToken = localStorage.getItem('dropbox_auth_token');
+
+      if (pendingSave === 'true' && accessToken) {
+        console.log('[Dropbox] Found pending token to save...');
+        try {
+          const { saveCloudToken } = await import('./lib/cloudTokenService');
+          const result = await saveCloudToken('dropbox', accessToken);
+
+          if (result.success) {
+            console.log('[Dropbox] Pending token saved successfully');
+            localStorage.removeItem('dropbox_token_pending_save');
+          } else {
+            console.error('[Dropbox] Failed to save pending token:', result.error);
+          }
+        } catch (error) {
+          console.error('[Dropbox] Error saving pending token:', error);
+        }
+      }
+    };
+
+    savePendingToken();
+  }, [currentUser, session]);
 
   const fetchFiles = useCallback(async (folderId: string) => {
     setIsLoadingFiles(true);
