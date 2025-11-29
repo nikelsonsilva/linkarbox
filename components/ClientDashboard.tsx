@@ -3,6 +3,10 @@ import { Home, Share2, FolderOpen, File, Clock, Loader2, LogOut, User, Grid, Lis
 import { getSharedFilesForClient, type SharedFile } from '../lib/shareService';
 import { loadFolderContents, type FolderFile } from '../lib/clientFolderLoader';
 import { supabase } from '../lib/supabase';
+import FileIcon from './FileIcon';
+import FileDetailPanel from './FileDetailPanel';
+import type { FileItem } from '../types';
+
 
 interface ClientDashboardProps {
     clientId: string;
@@ -25,6 +29,11 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({ clientId }) => {
     const [isLoadingFolder, setIsLoadingFolder] = useState(false);
     const [navigationPath, setNavigationPath] = useState<Array<{ name: string; folder: SharedFile | null }>>([{ name: 'Todos os Arquivos', folder: null }]);
     const [selectedFile, setSelectedFile] = useState<string | null>(null);
+    
+    // Detail panel states
+    const [selectedFileForPanel, setSelectedFileForPanel] = useState<SharedFile | FolderFile | null>(null);
+    const [showDetailPanel, setShowDetailPanel] = useState(false);
+
 
     useEffect(() => {
         loadUserData();
@@ -99,9 +108,10 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({ clientId }) => {
             return;
         }
 
-        // For files, show detail panel (to be implemented - for now show alert)
-        console.log('[Client] File clicked - would open detail panel');
-        alert(`Arquivo: ${file.filename}\n\nPainel de detalhes será implementado em breve.`);
+        // For files, show detail panel
+        console.log('[Client] Opening detail panel for file');
+        setSelectedFileForPanel(file);
+        setShowDetailPanel(true);
     };
 
     const handleFolderFileClick = async (file: FolderFile) => {
@@ -151,9 +161,10 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({ clientId }) => {
             return;
         }
 
-        // For files, show detail panel (to be implemented - for now show alert)
-        console.log('[Client] File clicked - would open detail panel');
-        alert(`Arquivo: ${file.filename}\n\nPainel de detalhes será implementado em breve.`);
+        // For files, show detail panel
+        console.log('[Client] Opening detail panel for file');
+        setSelectedFileForPanel(file);
+        setShowDetailPanel(true);
     };
 
     const handleNavigateToFolder = async (index: number) => {
@@ -211,6 +222,55 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({ clientId }) => {
             case 'xls':
             case 'xlsx': return <File className="w-8 h-8 text-green-600" />;
             default: return <File className="w-8 h-8 text-gray-400" />;
+        }
+    };
+
+    
+    // Helper function to get MIME type from filename
+    const getMimeTypeFromExtension = (filename: string): string => {
+        const ext = filename.split('.').pop()?.toLowerCase();
+        const mimeTypes: Record<string, string> = {
+            'pdf': 'application/pdf',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'gif': 'image/gif',
+            'doc': 'application/msword',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls': 'application/vnd.ms-excel',
+            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'txt': 'text/plain',
+            'zip': 'application/zip',
+        };
+        return ext ? mimeTypes[ext] || 'application/octet-stream' : 'application/octet-stream';
+    };
+
+    // Convert SharedFile or FolderFile to FileItem for FileDetailPanel
+    const convertToFileItem = (file: SharedFile | FolderFile): FileItem => {
+        if ('sharedat' in file) {
+            // É SharedFile
+            return {
+                id: file.id,
+                name: file.filename,
+                cloudId: file.cloudfileid,
+                mimeType: getMimeTypeFromExtension(file.filename),
+                modified: new Date(file.sharedat).toLocaleDateString('pt-BR'),
+                url: file.file_url || file.web_view_link || '',
+                isStarred: false,
+                sharedWith: [],
+            };
+        } else {
+            // É FolderFile
+            return {
+                id: file.cloudfileid,
+                name: file.filename,
+                cloudId: file.cloudfileid,
+                mimeType: file.mimetype || getMimeTypeFromExtension(file.filename),
+                modified: file.modified ? new Date(file.modified).toLocaleDateString('pt-BR') : '-',
+                url: file.filepath,
+                isStarred: false,
+                sharedWith: [],
+            };
         }
     };
 
@@ -561,7 +621,11 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({ clientId }) => {
                                                     >
                                                         <div className="flex flex-col items-center text-center">
                                                             <div className="w-16 h-16 rounded-lg bg-primary/10 flex items-center justify-center mb-3">
-                                                                {getFileIcon(file.filename, file.filetype)}
+                                                                {file.filetype === 'folder' ? (
+                                                                    <FolderOpen className="w-8 h-8 text-primary" />
+                                                                ) : (
+                                                                    <FileIcon fileName={file.filename} size={32} />
+                                                                )}
                                                             </div>
                                                             <p className="font-medium text-gray-900 truncate w-full mb-1">
                                                                 {file.filename}
@@ -589,7 +653,7 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({ clientId }) => {
                                                                 {file.filetype === 'folder' ? (
                                                                     <FolderOpen className="w-8 h-8 text-primary" />
                                                                 ) : (
-                                                                    <File className="w-8 h-8 text-primary" />
+                                                                    <FileIcon fileName={file.filename} size={32} />
                                                                 )}
                                                             </div>
                                                             <p className="font-medium text-gray-900 truncate w-full mb-1">
@@ -631,7 +695,11 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({ clientId }) => {
                                                         className="flex items-center gap-4 p-4 hover:bg-gray-50 transition-colors cursor-pointer group"
                                                     >
                                                         <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                                                            {getFileIcon(file.filename, file.filetype)}
+                                                            {file.filetype === 'folder' ? (
+                                                                <FolderOpen className="w-5 h-5 text-primary" />
+                                                            ) : (
+                                                                <FileIcon fileName={file.filename} size={20} />
+                                                            )}
                                                         </div>
                                                         <div className="flex-1 min-w-0">
                                                             <p className="font-medium text-gray-900 truncate">{file.filename}</p>
@@ -653,7 +721,7 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({ clientId }) => {
                                                             {file.filetype === 'folder' ? (
                                                                 <FolderOpen className="w-5 h-5 text-primary" />
                                                             ) : (
-                                                                <File className="w-5 h-5 text-primary" />
+                                                                <FileIcon fileName={file.filename} size={20} />
                                                             )}
                                                         </div>
                                                         <div className="flex-1 min-w-0">
@@ -686,6 +754,21 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({ clientId }) => {
                     )}
                 </main>
             </div>
+
+            {/* Detail Panel */}
+            {showDetailPanel && selectedFileForPanel && (
+                <FileDetailPanel
+                    item={convertToFileItem(selectedFileForPanel)}
+                    onClose={() => {
+                        setShowDetailPanel(false);
+                        setSelectedFileForPanel(null);
+                    }}
+                    currentUser={currentUser}
+                    onPreviewClick={(item) => {
+                        console.log('Preview:', item);
+                    }}
+                />
+            )}
         </div>
     );
 };
