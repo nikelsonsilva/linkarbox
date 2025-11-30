@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 import FileIcon from './FileIcon';
 import FileDetailPanel from './FileDetailPanel';
 import type { FileItem } from '../types';
+import { getUnreadNotesMapForClient } from '../lib/clientNoteService';
 
 
 interface ClientDashboardProps {
@@ -29,7 +30,7 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({ clientId }) => {
     const [isLoadingFolder, setIsLoadingFolder] = useState(false);
     const [navigationPath, setNavigationPath] = useState<Array<{ name: string; folder: SharedFile | null }>>([{ name: 'Todos os Arquivos', folder: null }]);
     const [selectedFile, setSelectedFile] = useState<string | null>(null);
-    
+
     // Detail panel states
     const [selectedFileForPanel, setSelectedFileForPanel] = useState<SharedFile | FolderFile | null>(null);
     const [showDetailPanel, setShowDetailPanel] = useState(false);
@@ -225,7 +226,7 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({ clientId }) => {
         }
     };
 
-    
+
     // Helper function to get MIME type from filename
     const getMimeTypeFromExtension = (filename: string): string => {
         const ext = filename.split('.').pop()?.toLowerCase();
@@ -615,8 +616,8 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({ clientId }) => {
                                                         onClick={() => setSelectedFile(file.cloudfileid)}
                                                         onDoubleClick={() => handleFolderFileClick(file)}
                                                         className={`group p-4 rounded-lg border transition-all cursor-pointer relative ${selectedFile === file.cloudfileid
-                                                                ? 'border-primary bg-primary/5 shadow-md'
-                                                                : 'border-gray-200 hover:border-primary hover:shadow-md'
+                                                            ? 'border-primary bg-primary/5 shadow-md'
+                                                            : 'border-gray-200 hover:border-primary hover:shadow-md'
                                                             }`}
                                                     >
                                                         <div className="flex flex-col items-center text-center">
@@ -644,8 +645,8 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({ clientId }) => {
                                                         onClick={() => setSelectedFile(file.id)}
                                                         onDoubleClick={() => handleFileClick(file)}
                                                         className={`group p-4 rounded-lg border transition-all cursor-pointer relative ${selectedFile === file.id
-                                                                ? 'border-primary bg-primary/5 shadow-md'
-                                                                : 'border-gray-200 hover:border-primary hover:shadow-md'
+                                                            ? 'border-primary bg-primary/5 shadow-md'
+                                                            : 'border-gray-200 hover:border-primary hover:shadow-md'
                                                             }`}
                                                     >
                                                         <div className="flex flex-col items-center text-center">
@@ -767,6 +768,7 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({ clientId }) => {
                     onPreviewClick={(item) => {
                         console.log('Preview:', item);
                     }}
+                    architectId={selectedFileForPanel.architect_id}
                 />
             )}
         </div>

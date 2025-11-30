@@ -64,10 +64,31 @@ export async function getNotesByFile(fileRegistryId: string): Promise<Note[]> {
             return [];
         }
 
+        // Identificar IDs de clientes (que não têm profile)
+        const clientIds = (data || [])
+            .filter((note: any) => !note.author)
+            .map((note: any) => note.author_id);
+
+        // Buscar nomes de clientes em batch
+        let clientNamesMap: Record<string, string> = {};
+        if (clientIds.length > 0) {
+            const { data: clientsData, error: clientsError } = await supabase
+                .from('clients')
+                .select('user_id, name')
+                .in('user_id', clientIds);
+
+            if (!clientsError && clientsData) {
+                clientNamesMap = clientsData.reduce((acc: any, client: any) => {
+                    acc[client.user_id] = client.name;
+                    return acc;
+                }, {});
+            }
+        }
+
         // Mapear os dados do autor para o formato esperado
         return (data || []).map((note: any) => ({
             ...note,
-            author_name: note.author?.name || 'Unknown',
+            author_name: note.author?.name || clientNamesMap[note.author_id] || 'Unknown',
             author_avatar: note.author?.avatar_url || '',
         }));
     } catch (err) {

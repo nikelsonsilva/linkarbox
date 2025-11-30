@@ -14,11 +14,12 @@ interface FileDetailPanelProps {
   currentUser: User;
   onPreviewClick: (item: FileItem) => void;
   onFetchContent?: (item: FileItem) => Promise<string | null>;
+  architectId?: string; // ID do arquiteto (para clientes)
 }
 
 type Tab = 'details' | 'notes';
 
-const FileDetailPanel: React.FC<FileDetailPanelProps> = ({ item, onClose, currentUser, onPreviewClick, onFetchContent }) => {
+const FileDetailPanel: React.FC<FileDetailPanelProps> = ({ item, onClose, currentUser, onPreviewClick, onFetchContent, architectId }) => {
   const [activeTab, setActiveTab] = useState<Tab>('details');
   const [showSharedUsers, setShowSharedUsers] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -77,7 +78,7 @@ const FileDetailPanel: React.FC<FileDetailPanelProps> = ({ item, onClose, curren
   const renderTabContent = () => {
     switch (activeTab) {
       case 'notes':
-        return <FileNotes item={item} onNotesChange={handleNotesChange} />;
+        return <FileNotes item={item} onNotesChange={handleNotesChange} architectId={architectId} />;
       case 'details':
       default:
         return (

@@ -401,7 +401,7 @@ export default function App() {
           modified: e.client_modified ? new Date(e.client_modified).toLocaleDateString() : 'N/A',
           size: e.size,
           serverModified: e.server_modified, // Store for sorting
-          cloudId: e.id, // Add cloudId for notes tracking
+          cloudId: e.path_lower, // Use path_lower for consistency with shared_files
         }));
       }
 
