@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 import FileIcon from './FileIcon';
 import FileDetailPanel from './FileDetailPanel';
 import type { FileItem } from '../types';
+import { ItemType } from '../constants';
 import { getUnreadNotesMapForClient } from '../lib/clientNoteService';
 
 
@@ -88,6 +89,12 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({ clientId }) => {
         console.log('File clicked:', file.filename);
         console.log('File type:', file.filetype);
 
+        // Close detail panel if open
+        if (showDetailPanel) {
+            setShowDetailPanel(false);
+            setSelectedFileForPanel(null);
+        }
+
         // For folders, load contents via API (internal navigation)
         if (file.filetype === 'folder') {
             console.log('[Client] Loading folder contents:', file.cloudfileid);
@@ -117,6 +124,12 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({ clientId }) => {
 
     const handleFolderFileClick = async (file: FolderFile) => {
         console.log('[Client] Folder file clicked:', file.filename);
+
+        // Close detail panel if open
+        if (showDetailPanel) {
+            setShowDetailPanel(false);
+            setSelectedFileForPanel(null);
+        }
 
         // For subfolders, load their contents recursively
         if (file.filetype === 'folder') {
@@ -164,7 +177,14 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({ clientId }) => {
 
         // For files, show detail panel
         console.log('[Client] Opening detail panel for file');
-        setSelectedFileForPanel(file);
+
+        // Add architect_id to the file if it doesn't have one
+        const fileWithArchitect: FolderFile = {
+            ...file,
+            architect_id: file.architect_id || currentFolder?.architect_id
+        };
+
+        setSelectedFileForPanel(fileWithArchitect);
         setShowDetailPanel(true);
     };
 
@@ -253,6 +273,8 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({ clientId }) => {
             return {
                 id: file.id,
                 name: file.filename,
+                type: file.filetype === 'folder' ? ItemType.FOLDER : ItemType.FILE,
+                parentId: null,
                 cloudId: file.cloudfileid,
                 mimeType: getMimeTypeFromExtension(file.filename),
                 modified: new Date(file.sharedat).toLocaleDateString('pt-BR'),
@@ -265,6 +287,8 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({ clientId }) => {
             return {
                 id: file.cloudfileid,
                 name: file.filename,
+                type: file.filetype === 'folder' ? ItemType.FOLDER : ItemType.FILE,
+                parentId: null,
                 cloudId: file.cloudfileid,
                 mimeType: file.mimetype || getMimeTypeFromExtension(file.filename),
                 modified: file.modified ? new Date(file.modified).toLocaleDateString('pt-BR') : '-',

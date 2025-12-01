@@ -182,6 +182,7 @@ serve(async (req) => {
             mimetype: entry['.tag'] === 'file' ? getMimeType(entry.name) : null,
             filesize: entry['.tag'] === 'file' ? entry.size : null,
             modified: entry.client_modified || entry.server_modified,
+            architect_id: architectId, // Add architect_id to each file
         }))
 
         console.log('=== SUCCESS ===');

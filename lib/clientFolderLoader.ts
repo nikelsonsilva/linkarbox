@@ -8,6 +8,7 @@ export interface FolderFile {
     mimetype?: string;
     filesize?: number;
     modified?: string;
+    architect_id?: string; // ID do arquiteto que compartilhou
 }
 
 /**
